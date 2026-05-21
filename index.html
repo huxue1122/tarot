@@ -705,65 +705,72 @@ document.addEventListener('click', (e) => {
 });
 
 // ========== 生成式氛围轻音乐 (Tone.js) ==========
-let padSynthBgm;
-let bellSynthBgm;
-let bgmSequence;
-let bgmLoop;
+let bgmReverb, delayFx, vibratoFx;
+let fluteSynth, pluckedSynth;
+let seqPluck, loopFlute;
 let isBgmPlaying = false;
 
 async function playEtherealBGM() {
   if (isBgmPlaying) return;
   await Tone.start();
 
-  // 构建空灵的混响与延迟空间
-  const bgmReverb = new Tone.Reverb({ decay: 8, wet: 0.75 }).toDestination();
-  const delay = new Tone.FeedbackDelay("8n", 0.6).connect(bgmReverb);
-  const chorus = new Tone.Chorus(4, 2.5, 0.5).connect(bgmReverb).start();
+  // 核心特效：混响与延时，营造山林空谷的回音感
+  bgmReverb = new Tone.Reverb({ decay: 6, wet: 0.65 }).toDestination();
+  delayFx = new Tone.FeedbackDelay("8n", 0.3).connect(bgmReverb);
+  
+  // 为“竹笛”增加微弱的颤音，模拟人的气息
+  vibratoFx = new Tone.Vibrato({ frequency: 4.5, depth: 0.05 }).connect(delayFx);
 
-  // 铺底合成器 (Pad)：模拟温暖缓慢的治愈背景声
-  padSynthBgm = new Tone.PolySynth(Tone.AMSynth, {
-    oscillator: { type: "sine" },
-    envelope: { attack: 2, decay: 1, sustain: 0.8, release: 4 }
-  }).connect(chorus);
-  padSynthBgm.volume.value = -12;
-
-  // 点缀合成器 (Bell)：模拟随机闪烁的星光或风铃
-  bellSynthBgm = new Tone.PolySynth(Tone.FMSynth, {
-    harmonicity: 3,
+  // 1. 竹笛/洞箫合成器 (木音核心：温润、悠长、如春风)
+  fluteSynth = new Tone.PolySynth(Tone.FMSynth, {
+    harmonicity: 2.01,
     modulationIndex: 1.2,
     oscillator: { type: "sine" },
-    envelope: { attack: 0.05, decay: 0.2, sustain: 0.1, release: 2 }
-  }).connect(delay);
-  bellSynthBgm.volume.value = -18;
+    envelope: { attack: 1.5, decay: 0.5, sustain: 0.8, release: 4 },
+    modulation: { type: "triangle" },
+    modulationEnvelope: { attack: 1, decay: 0.2, sustain: 1, release: 2 }
+  }).connect(vibratoFx);
+  fluteSynth.volume.value = -12;
 
-  // 和弦进行 (Am -> F -> C -> G) 治愈系经典进行
-  const chords = [
-    ["A3", "C4", "E4"],
-    ["F3", "A3", "C4"],
-    ["C3", "E3", "G3"],
-    ["G3", "B3", "D4"]
+  // 2. 古琴/木弦合成器 (拨弦，清脆温润，疏通郁结)
+  pluckedSynth = new Tone.PolySynth(Tone.Synth, {
+    oscillator: { type: "triangle" },
+    envelope: { attack: 0.01, decay: 1.5, sustain: 0, release: 1.5 }
+  }).connect(delayFx);
+  pluckedSynth.volume.value = -12;
+
+  // 【中医五行音乐疗法 - 木音疏肝】
+  // 木音属于“角”调式 (Jue Mode)，对应五音中的“角(Mi)”。
+  // C大调的角调式音阶为：E(角) -> G(徵) -> A(羽) -> C(宫) -> D(商) -> E(角)
+  // 这种音阶有着春天草木生长、向上向外生发的能量，最能疏肝理气、解郁。
+  Tone.Transport.bpm.value = 55; // 舒缓的中板，如植物缓慢生长
+
+  // 古琴拨弦序列 (旋律优美，畅达而不滞)
+  const jueMelody = [
+    ["E3", "A3"], ["C4", "D4"], ["E4", null], ["D4", "C4"],
+    ["A3", "G3"], ["A3", "C4"], ["D4", null], [null, null],
+    ["G3", "C4"], ["D4", "E4"], ["G4", null], ["E4", "D4"],
+    ["C4", "A3"], ["G3", "E3"], ["A3", null], [null, null]
   ];
-  // 五声音阶点缀
-  const pentatonic = ["A4", "C5", "D5", "E5", "G5", "A5", "C6"];
 
-  Tone.Transport.bpm.value = 60; // 心跳般的慢速
-
-  // 编排铺底和弦序列
-  bgmSequence = new Tone.Sequence((time, chord) => {
-    padSynthBgm.triggerAttackRelease(chord, "1m", time);
-  }, chords, "1m");
-
-  // 编排随机点缀循环
-  bgmLoop = new Tone.Loop(time => {
-    // 60%概率留白，40%概率触发空灵点缀音
-    if (Math.random() > 0.6) {
-      const note = pentatonic[Math.floor(Math.random() * pentatonic.length)];
-      bellSynthBgm.triggerAttackRelease(note, "8n", time);
+  seqPluck = new Tone.Sequence((time, notes) => {
+    if (notes) {
+      // 随机调整力度，模拟人手拨弦的颗粒感
+      pluckedSynth.triggerAttackRelease(notes, "4n", time, Math.random() * 0.3 + 0.5);
     }
-  }, "4n");
+  }, jueMelody, "2n");
 
-  bgmSequence.start(0);
-  bgmLoop.start(0);
+  // 竹笛长音随机穿插，作为背景托底
+  const fluteNotes = ["E3", "A3", "C4", "E4"];
+  loopFlute = new Tone.Loop(time => {
+    if (Math.random() > 0.3) {
+      const note = fluteNotes[Math.floor(Math.random() * fluteNotes.length)];
+      fluteSynth.triggerAttackRelease(note, "1m", time, 0.4);
+    }
+  }, "2m");
+
+  seqPluck.start(0);
+  loopFlute.start(0);
   Tone.Transport.start();
   isBgmPlaying = true;
 }
@@ -771,10 +778,13 @@ async function playEtherealBGM() {
 function stopEtherealBGM() {
   if (isBgmPlaying) {
     Tone.Transport.stop();
-    if (bgmSequence) bgmSequence.dispose();
-    if (bgmLoop) bgmLoop.dispose();
-    if (padSynthBgm) padSynthBgm.dispose();
-    if (bellSynthBgm) bellSynthBgm.dispose();
+    if (seqPluck) seqPluck.dispose();
+    if (loopFlute) loopFlute.dispose();
+    if (fluteSynth) fluteSynth.dispose();
+    if (pluckedSynth) pluckedSynth.dispose();
+    if (delayFx) delayFx.dispose();
+    if (vibratoFx) vibratoFx.dispose();
+    if (bgmReverb) bgmReverb.dispose();
     isBgmPlaying = false;
   }
 }
